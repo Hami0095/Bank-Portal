@@ -32,11 +32,11 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    DashboardScreen(),
+    //DashboardScreen(),
     TransactionMonitoringScreen(),
-    LogsReportsScreen(),
-    KYCSetupScreen(),
-    UserManagementScreen(),
+    //LogsReportsScreen(),
+    //KYCSetupScreen(),
+    //UserManagementScreen(),
   ];
 
   @override
@@ -93,11 +93,11 @@ class NavigationBar extends StatelessWidget {
             ),
           ),
           const Divider(color: Colors.white54),
-          _buildNavItem(Icons.dashboard, 'Dashboard', 0),
+          // _buildNavItem(Icons.dashboard, 'Dashboard', 0),
           _buildNavItem(Icons.monetization_on, 'Transaction Monitoring', 1),
-          _buildNavItem(Icons.receipt_long, 'Logs & Reports', 2),
-          _buildNavItem(Icons.verified_user, 'KYC Database Setup', 3),
-          _buildNavItem(Icons.people, 'User Management', 4),
+          // _buildNavItem(Icons.receipt_long, 'Logs & Reports', 2),
+          // _buildNavItem(Icons.verified_user, 'KYC Database Setup', 3),
+          // _buildNavItem(Icons.people, 'User Management', 4),
         ],
       ),
     );
