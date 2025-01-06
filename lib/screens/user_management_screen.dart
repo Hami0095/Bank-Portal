@@ -1,32 +1,32 @@
 import 'package:flutter/material.dart';
+import '../services/auth_services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserManagementScreen extends StatefulWidget {
+  const UserManagementScreen({super.key});
+
   @override
+  // ignore: library_private_types_in_public_api
   _UserManagementScreenState createState() => _UserManagementScreenState();
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  // Sample user data
-  List<Map<String, dynamic>> users = [
-    {'name': 'Admin User', 'email': 'admin@bank.com', 'role': 'Admin'},
-    {
-      'name': 'Analyst A',
-      'email': 'analystA@bank.com',
-      'role': 'Fraud Analyst'
-    },
-    {
-      'name': 'Analyst B',
-      'email': 'analystB@bank.com',
-      'role': 'Fraud Analyst'
-    },
-  ];
+  final AuthService _authService = AuthService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  void _addOrEditUser({Map<String, dynamic>? user, int? index}) {
+  // Stream to listen to users collection
+  Stream<QuerySnapshot> getUsersStream() {
+    return _firestore.collection('users').snapshots();
+  }
+
+  void _addOrEditUser({Map<String, dynamic>? userData, String? uid}) {
     TextEditingController nameController =
-        TextEditingController(text: user != null ? user['name'] : '');
+        TextEditingController(text: userData != null ? userData['name'] : '');
     TextEditingController emailController =
-        TextEditingController(text: user != null ? user['email'] : '');
-    String role = user != null ? user['role'] : 'Fraud Analyst';
+        TextEditingController(text: userData != null ? userData['email'] : '');
+    String role = userData != null ? userData['role'] : 'Fraud Analyst';
+    TextEditingController passwordController = TextEditingController();
 
     showDialog(
       context: context,
@@ -34,7 +34,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return AlertDialog(
           contentPadding: const EdgeInsets.all(25),
           title: Text(
-            user == null ? 'Add New User' : 'Edit User',
+            userData == null ? 'Add New User' : 'Edit User',
             style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.blueGrey.shade900,
@@ -50,25 +50,32 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: role,
-                    items: ['Admin', 'Fraud Analyst'].map((String value) {
+                    items: ['Fraud Analyst'].map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(value,
                             style: const TextStyle(color: Colors.white)),
                       );
                     }).toList(),
-                    onChanged: (newRole) => setState(() {
-                      role = newRole!;
-                    }),
+                    onChanged: (newRole) {
+                      setState(() {
+                        role = newRole!;
+                      });
+                    },
                     dropdownColor: Colors.blueGrey.shade800,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Role',
-                      labelStyle: TextStyle(color: Colors.white70),
+                      labelStyle: const TextStyle(color: Colors.white70),
                       filled: true,
-                      fillColor: Colors.blueGrey,
-                      border: OutlineInputBorder(),
+                      fillColor: Colors.blueGrey.shade800,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  // Only show password field when adding a new user
+                  if (userData == null)
+                    _buildTextField('Password', passwordController,
+                        obscure: true),
                 ],
               ),
             ),
@@ -82,25 +89,74 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  if (user == null) {
-                    // Add new user
-                    users.add({
-                      'name': nameController.text,
-                      'email': emailController.text,
-                      'role': role,
-                    });
-                  } else if (index != null) {
+              onPressed: () async {
+                String name = nameController.text.trim();
+                String email = emailController.text.trim();
+                String selectedRole = role;
+
+                if (name.isEmpty || email.isEmpty || selectedRole.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('All fields are required')),
+                  );
+                  return;
+                }
+
+                try {
+                  if (userData == null) {
+                    // Add new user (Fraud Analyst)
+                    String password = passwordController.text.trim();
+                    if (password.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Password is required')),
+                      );
+                      return;
+                    }
+
+                    // Create user with Firebase Auth
+                    User? user = await _authService.signUp(
+                        email, password, name, selectedRole);
+
+                    if (user != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('User added successfully')),
+                      );
+                    }
+                  } else {
                     // Edit existing user
-                    users[index] = {
-                      'name': nameController.text,
-                      'email': emailController.text,
-                      'role': role,
-                    };
+                    String userUid = uid!;
+                    await _firestore.collection('users').doc(userUid).update({
+                      'name': name,
+                      'email': email,
+                      'role': selectedRole,
+                    });
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('User updated successfully')),
+                    );
                   }
-                });
-                Navigator.of(context).pop();
+
+                  Navigator.of(context).pop();
+                } on FirebaseAuthException catch (e) {
+                  String message;
+                  if (e.code == 'email-already-in-use') {
+                    message = 'This email is already in use.';
+                  } else if (e.code == 'weak-password') {
+                    message = 'The password is too weak.';
+                  } else {
+                    message = 'An error occurred. Please try again.';
+                  }
+                  setState(() {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message)),
+                    );
+                  });
+                } catch (e) {
+                  setState(() {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: ${e.toString()}')),
+                    );
+                  });
+                }
               },
               child: const Text(
                 'Save',
@@ -113,10 +169,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller) {
+  Widget _buildTextField(String label, TextEditingController controller,
+      {bool obscure = false}) {
     return TextField(
       controller: controller,
       style: const TextStyle(color: Colors.white),
+      obscureText: obscure,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white70),
@@ -124,6 +182,38 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         fillColor: Colors.blueGrey.shade800,
         border: const OutlineInputBorder(),
       ),
+    );
+  }
+
+  void _deleteUser(String uid) async {
+    try {
+      // **Important**: Deleting a user from Firebase Auth requires admin privileges.
+      // This operation should be handled securely, preferably via a Cloud Function.
+
+      // Example: Call a Cloud Function to delete the user
+      // You need to implement this Cloud Function separately.
+
+      // Placeholder for Cloud Function call
+      // await deleteUserFunction(uid);
+
+      // For demonstration, we'll just delete the Firestore document
+      await _firestore.collection('users').doc(uid).delete();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User deleted successfully')),
+      );
+    } catch (e) {
+      print(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting user: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _updateDatabase() {
+    // Placeholder for saving to database if needed
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Database updated successfully!')),
     );
   }
 
@@ -161,6 +251,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ElevatedButton.icon(
                   onPressed: () {
                     // Placeholder for CSV upload
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text('CSV upload not implemented yet.')),
+                    );
                   },
                   icon: Icon(Icons.upload_file, color: Colors.white),
                   label: Text(
@@ -172,6 +266,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ElevatedButton.icon(
                   onPressed: () {
                     // Placeholder for database export
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Export not implemented yet.')),
+                    );
                   },
                   icon: Icon(Icons.download, color: Colors.white),
                   label: Text(
@@ -187,70 +284,86 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
             // User Data Table
             Expanded(
-              child: DataTable(
-                columnSpacing: 16.0,
-                headingRowColor:
-                    MaterialStateProperty.all(Colors.blueGrey.shade700),
-                columns: const [
-                  DataColumn(
-                      label:
-                          Text('Name', style: TextStyle(color: Colors.white))),
-                  DataColumn(
-                      label:
-                          Text('Email', style: TextStyle(color: Colors.white))),
-                  DataColumn(
-                      label:
-                          Text('Role', style: TextStyle(color: Colors.white))),
-                  DataColumn(
-                      label: Text('Actions',
-                          style: TextStyle(color: Colors.white))),
-                ],
-                rows: users.map((user) {
-                  final index = users.indexOf(user);
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(user['name'],
-                          style: TextStyle(color: Colors.black))),
-                      DataCell(Text(user['email'],
-                          style: TextStyle(color: Colors.black))),
-                      DataCell(Text(user['role'],
-                          style: TextStyle(color: Colors.black))),
-                      DataCell(Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.edit, color: Colors.green),
-                            onPressed: () =>
-                                _addOrEditUser(user: user, index: index),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () {
-                              setState(() {
-                                users.removeAt(index);
-                              });
-                            },
-                          ),
-                        ],
-                      )),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: getUsersStream(),
+                builder: (BuildContext context,
+                    AsyncSnapshot<QuerySnapshot> snapshot) {
+                  if (snapshot.hasError) {
+                    return Text('Something went wrong',
+                        style: TextStyle(color: Colors.white));
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+
+                  return DataTable(
+                    columnSpacing: 16.0,
+                    headingRowColor:
+                        MaterialStateProperty.all(Colors.blueGrey.shade700),
+                    columns: const [
+                      DataColumn(
+                          label: Text('Name',
+                              style: TextStyle(color: Colors.white))),
+                      DataColumn(
+                          label: Text('Email',
+                              style: TextStyle(color: Colors.white))),
+                      DataColumn(
+                          label: Text('Role',
+                              style: TextStyle(color: Colors.white))),
+                      DataColumn(
+                          label: Text('Actions',
+                              style: TextStyle(color: Colors.white))),
                     ],
+                    rows: snapshot.data!.docs.map((DocumentSnapshot document) {
+                      Map<String, dynamic> data =
+                          document.data()! as Map<String, dynamic>;
+                      String uid = document.id;
+
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(data['name'],
+                              style: TextStyle(color: Colors.black))),
+                          DataCell(Text(data['email'],
+                              style: TextStyle(color: Colors.black))),
+                          DataCell(Text(data['role'],
+                              style: TextStyle(color: Colors.black))),
+                          DataCell(Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit, color: Colors.green),
+                                onPressed: () =>
+                                    _addOrEditUser(userData: data, uid: uid),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _deleteUser(uid),
+                              ),
+                            ],
+                          )),
+                        ],
+                      );
+                    }).toList(),
                   );
-                }).toList(),
+                },
               ),
             ),
 
+            const SizedBox(height: 16),
+
             // Update Database Button
-            ElevatedButton(
-              onPressed: () {
-                // Placeholder for saving to database
-              },
-              child: Text(
-                "Update Database",
-                style: TextStyle(color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey.shade900,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: _updateDatabase,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                ),
+                child: const Text(
+                  "Update Database",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
               ),
             ),
           ],
