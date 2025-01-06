@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import '../services/auth_services.dart';
 import 'main_screen.dart';
-import 'signup_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
-
+class SignupScreen extends StatefulWidget {
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  _SignupScreenState createState() => _SignupScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _SignupScreenState extends State<SignupScreen> {
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
   String email = '';
   String password = '';
+  String confirmPassword = '';
+  String userType = 'Admin'; // Default role
   String error = '';
 
   bool loading = false;
@@ -34,8 +33,8 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Bank Portal Login',
+                  Text(
+                    'Create Account',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -62,10 +61,31 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      labelStyle: const TextStyle(color: Colors.white70),
+                      labelStyle: TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: Colors.blueGrey.shade800,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    obscureText: true,
+                    validator: (val) => val!.length < 6
+                        ? 'Enter a password 6+ chars long'
+                        : null,
+                    onChanged: (val) {
+                      setState(() => password = val);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      labelStyle: TextStyle(color: Colors.white70),
                       filled: true,
                       fillColor: Colors.blueGrey.shade800,
                       border: OutlineInputBorder(
@@ -75,9 +95,35 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     obscureText: true,
                     validator: (val) =>
-                        val!.isEmpty ? 'Enter your password' : null,
+                        val != password ? 'Passwords do not match' : null,
                     onChanged: (val) {
-                      setState(() => password = val);
+                      setState(() => confirmPassword = val);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String>(
+                    value: userType,
+                    decoration: InputDecoration(
+                      labelText: 'User Type',
+                      labelStyle: TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: Colors.blueGrey.shade800,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: ['Admin', 'Fraud Analyst'].map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child:
+                            Text(value, style: TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      setState(() {
+                        userType = newValue!;
+                      });
                     },
                   ),
                   const SizedBox(height: 30),
@@ -85,32 +131,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () async {
                       if (_formKey.currentState!.validate()) {
                         setState(() => loading = true);
-                        Map<String, dynamic>? user = await _authService.signIn(
+                        bool success = await _authService.signUp(
                           email: email,
                           password: password,
+                          userType: userType,
                         );
-                        if (user != null) {
-                          if (user['userType'] == 'Admin') {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => MainScreen()),
-                            );
-                          } else {
-                            setState(() {
-                              error = 'Access denied: Not an Admin.';
-                              loading = false;
-                            });
-                          }
+                        if (success) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => MainScreen()),
+                          );
                         } else {
                           setState(() {
-                            error = 'Invalid email or password.';
+                            error = 'Email already in use.';
                             loading = false;
                           });
                         }
                       }
                     },
-                    child: Text('Login'),
+                    child: Text('Sign Up'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue.shade600,
                       padding: EdgeInsets.symmetric(vertical: 16),
@@ -119,14 +159,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
                   TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => SignupScreen()),
-                      );
-                    },
+                    onPressed: () => Navigator.pop(context),
                     child: Text(
-                      'Don\'t have an account? Sign up',
+                      'Already have an account? Log in',
                       style: TextStyle(color: Colors.white70),
                     ),
                   ),

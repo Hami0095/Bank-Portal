@@ -1,79 +1,112 @@
-import 'package:firebase_auth/firebase_auth.dart';
+// auth_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'utils.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Singleton pattern
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal();
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Sign in with email and password
-  Future<User?> signIn(String email, String password) async {
-    try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
-          email: email, password: password);
-      User? user = result.user;
-      return user;
-    } on FirebaseAuthException catch (e) {
-      // Handle specific FirebaseAuth errors here
-      print('FirebaseAuthException: ${e.message}');
-      throw e;
-    } catch (e) {
-      print('Error signing in: $e');
-      throw e;
-    }
-  }
+  String? _currentUserEmailValue;
 
-  // Sign up with email and password
-  Future<User?> signUp(
-      String email, String password, String name, String role) async {
-    try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
-      User? user = result.user;
+  // Synchronous getter for current user's email
+  String? get currentUserEmail => _currentUserEmailValue;
 
-      // Add user details to Firestore
-      await _firestore.collection('users').doc(user!.uid).set({
-        'name': name,
+  // Sign up a new user
+  Future<bool> signUp({
+    required String email,
+    required String password,
+    required String userType,
+  }) async {
+    try {
+      // Check if email already exists
+      QuerySnapshot existingUser = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .get();
+      if (existingUser.docs.isNotEmpty) {
+        // Email already in use
+        return false;
+      }
+
+      // Generate salt and hash password
+      String salt = Utils.generateSalt();
+      String passwordHash = Utils.generatePasswordHash(password, salt);
+
+      // Generate token
+      String token = Utils.generateToken();
+
+      // Create user document
+      await _firestore.collection('users').add({
         'email': email,
-        'role': role, // 'Admin' or 'Fraud Analyst'
+        'passwordHash': passwordHash,
+        'salt': salt,
+        'token': token,
+        'userType': userType,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      return user;
-    } on FirebaseAuthException catch (e) {
-      // Handle specific FirebaseAuth errors here
-      print('FirebaseAuthException: ${e.message}');
-      throw e;
+      return true;
     } catch (e) {
-      print('Error signing up: $e');
-      throw e;
+      print('Error in signUp: $e');
+      return false;
     }
   }
 
-  // Sign out
-  Future<void> signOut() async {
-    await _auth.signOut();
-  }
-
-  // Get current user
-  User? get currentUser => _auth.currentUser;
-
-  // Stream for auth state changes
-  Stream<User?> get user {
-    return _auth.authStateChanges();
-  }
-
-  // Fetch user role
-  Future<String?> getUserRole(String uid) async {
+  // Sign in a user
+  Future<Map<String, dynamic>?> signIn({
+    required String email,
+    required String password,
+  }) async {
     try {
-      DocumentSnapshot doc =
-          await _firestore.collection('users').doc(uid).get();
-      if (doc.exists) {
-        return doc['role'];
+      // Fetch user by email
+      QuerySnapshot userQuery = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        // User not found
+        return null;
       }
-      return null;
+
+      var userDoc = userQuery.docs.first;
+      String storedHash = userDoc['passwordHash'];
+      String salt = userDoc['salt'];
+      String inputHash = Utils.generatePasswordHash(password, salt);
+
+      if (storedHash != inputHash) {
+        // Password does not match
+        return null;
+      }
+
+      // Authentication successful, store current user's email
+      _currentUserEmailValue = email;
+
+      // Return user data
+      return userDoc.data() as Map<String, dynamic>;
     } catch (e) {
-      print('Error fetching user role: $e');
+      print('Error in signIn: $e');
       return null;
+    }
+  }
+
+  // Sign out a user
+  Future<void> signOut({required String email}) async {
+    try {
+      // Optionally, invalidate token or perform other sign-out operations
+      // For simplicity, we'll skip token management here
+
+      // Clear current user email if it matches
+      if (_currentUserEmailValue == email) {
+        _currentUserEmailValue = null;
+      }
+    } catch (e) {
+      print('Error in signOut: $e');
     }
   }
 }

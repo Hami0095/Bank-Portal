@@ -1,3 +1,4 @@
+// main_screen.dart
 import 'package:flutter/material.dart';
 import '../services/auth_services.dart';
 import 'dashboard_screen.dart';
@@ -5,16 +6,22 @@ import 'transaction_monitoring_screen.dart';
 import 'logs_reports_screen.dart';
 import 'kyc_setup_screen.dart';
 import 'user_management_screen.dart';
+import 'login_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
   @override
+  // ignore: library_private_types_in_public_api
   _MainScreenState createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
   final AuthService _authService = AuthService();
   int _selectedIndex = 0;
-  String? role;
+  String? userType;
+  String? userId;
 
   final List<Widget> _adminPages = [
     DashboardScreen(),
@@ -35,56 +42,80 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchUserRole();
+    _fetchUserDetails();
   }
 
-  void _fetchUserRole() async {
-    String? uid = _authService.currentUser?.uid;
-    if (uid != null) {
-      String? userRole = await _authService.getUserRole(uid);
-      setState(() {
-        role = userRole;
-      });
+  void _fetchUserDetails() async {
+    String? email = _authService.currentUserEmail;
+    if (email != null) {
+      QuerySnapshot userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isNotEmpty) {
+        var userDoc = userQuery.docs.first;
+        setState(() {
+          userType = userDoc['userType'];
+          userId = userDoc.id;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (role == null) {
+    if (userType == null) {
       return Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    List<Widget> pages = role == 'Admin' ? _adminPages : _fraudAnalystPages;
+    List<Widget> pages = userType == 'Admin' ? _adminPages : _fraudAnalystPages;
 
     return Scaffold(
       body: Row(
         children: [
-          NavigationBar(
+          NavigationBarWidget(
             selectedIndex: _selectedIndex,
             onItemSelected: (index) {
               setState(() {
                 _selectedIndex = index;
               });
             },
-            isAdmin: role == 'Admin',
+            isAdmin: userType == 'Admin',
           ),
           Expanded(
             child: pages[_selectedIndex],
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          String? currentEmail = _authService.currentUserEmail;
+          if (currentEmail != null) {
+            await _authService.signOut(email: currentEmail);
+          }
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => LoginScreen()),
+          );
+        },
+        backgroundColor: Colors.red,
+        child: Icon(Icons.logout),
+        tooltip: 'Logout',
+      ),
     );
   }
 }
 
-class NavigationBar extends StatelessWidget {
+class NavigationBarWidget extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onItemSelected;
   final bool isAdmin;
 
-  const NavigationBar({
+  const NavigationBarWidget({
     Key? key,
     required this.selectedIndex,
     required this.onItemSelected,
