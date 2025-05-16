@@ -14,15 +14,10 @@ import 'package:flutter/foundation.dart'
 ///   options: DefaultFirebaseOptions.currentPlatform,
 /// );
 /// ```
-/// Platform  Firebase App Id
-/// windows   1:530588039420:web:a3ee88a0ccb151cfefff79
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -63,4 +58,15 @@ class DefaultFirebaseOptions {
     storageBucket: 'kyc-aml-bank-portal.firebasestorage.app',
     measurementId: 'G-J0NJM5032S',
   );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBy1g-rDtuL8Qv_B_7ywVw-eiBDgLM6dXs',
+    appId: '1:530588039420:web:658fbf768b83db9eefff79',
+    messagingSenderId: '530588039420',
+    projectId: 'kyc-aml-bank-portal',
+    authDomain: 'kyc-aml-bank-portal.firebaseapp.com',
+    storageBucket: 'kyc-aml-bank-portal.firebasestorage.app',
+    measurementId: 'G-95LYVZLRG3',
+  );
+
 }

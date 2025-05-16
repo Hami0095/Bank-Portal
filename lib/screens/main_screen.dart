@@ -1,13 +1,14 @@
 // main_screen.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../services/auth_services.dart';
 import 'dashboard_screen.dart';
 import 'transaction_monitoring_screen.dart';
 import 'logs_reports_screen.dart';
 import 'kyc_setup_screen.dart';
 import 'user_management_screen.dart';
 import 'login_screen.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -18,7 +19,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final AuthService _authService = AuthService();
+  // final AuthService _authService = AuthService();
   int _selectedIndex = 0;
   String? userType;
   String? userId;
@@ -26,42 +27,42 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _adminPages = [
     DashboardScreen(),
     TransactionMonitoringScreen(),
-    LogsReportsScreen(),
+    // LogsReportsScreen(),
     KYCSetupScreen(),
-    UserManagementScreen(),
+    // UserManagementScreen(),
   ];
 
   final List<Widget> _fraudAnalystPages = [
     DashboardScreen(),
     TransactionMonitoringScreen(),
-    LogsReportsScreen(),
-    KYCSetupScreen(),
+    // LogsReportsScreen(),
+    // KYCSetupScreen(),
     // Fraud Analysts do not have access to User Management
   ];
 
-  @override
+ @override
   void initState() {
     super.initState();
-    _fetchUserDetails();
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (user != null) {
+        _fetchUserDetails(user.uid);
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+        );
+      }
+    });
   }
 
-  void _fetchUserDetails() async {
-    String? email = _authService.currentUserEmail;
-    if (email != null) {
-      QuerySnapshot userQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
+  Future<void> _fetchUserDetails(String uid) async {
+    DocumentSnapshot userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
 
-      if (userQuery.docs.isNotEmpty) {
-        var userDoc = userQuery.docs.first;
-        setState(() {
-          userType = userDoc['userType'];
-          userId = userDoc.id;
-        });
-      }
-    }
+    setState(() {
+      userType = userDoc['userType'];
+      userId = uid;
+    });
   }
 
   @override
@@ -93,14 +94,14 @@ class _MainScreenState extends State<MainScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          String? currentEmail = _authService.currentUserEmail;
-          if (currentEmail != null) {
-            await _authService.signOut(email: currentEmail);
-          }
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => LoginScreen()),
-          );
+          // String? currentEmail = _authService.currentUserEmail;
+          // if (currentEmail != null) {
+          //   await _authService.signOut(email: currentEmail);
+          // }
+          // Navigator.pushReplacement(
+          //   context,
+          //   MaterialPageRoute(builder: (context) => LoginScreen()),
+          // );
         },
         backgroundColor: Colors.red,
         child: Icon(Icons.logout),
@@ -127,13 +128,13 @@ class NavigationBarWidget extends StatelessWidget {
     List<Map<String, dynamic>> navItems = [
       {'icon': Icons.dashboard, 'title': 'Dashboard'},
       {'icon': Icons.monetization_on, 'title': 'Transaction Monitoring'},
-      {'icon': Icons.receipt_long, 'title': 'Logs & Reports'},
+      // {'icon': Icons.receipt_long, 'title': 'Logs & Reports'},
       {'icon': Icons.verified_user, 'title': 'KYC Database Setup'},
     ];
 
-    if (isAdmin) {
-      navItems.add({'icon': Icons.people, 'title': 'User Management'});
-    }
+    // if (isAdmin) {
+    //   navItems.add({'icon': Icons.people, 'title': 'User Management'});
+    // }
 
     return Container(
       width: 250,

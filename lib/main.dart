@@ -6,11 +6,10 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+    options: DefaultFirebaseOptions.web,
   );
   runApp(const BankPortalApp());
 }
-
 class BankPortalApp extends StatelessWidget {
   const BankPortalApp({super.key});
 

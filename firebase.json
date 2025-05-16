@@ -1,1 +1,46 @@
-{"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"kyc-aml-bank-portal","configurations":{"windows":"1:530588039420:web:a3ee88a0ccb151cfefff79"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "kyc-aml-bank-portal",
+          "configurations": {
+            "web": "1:530588039420:web:658fbf768b83db9eefff79",
+            "windows": "1:530588039420:web:a3ee88a0ccb151cfefff79"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    },
+    {
+      "source": "cd1_kyc",
+      "codebase": "cd1",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}
